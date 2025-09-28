@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.example.demo.application.service.book.BookDeletionException;
+import com.example.demo.application.service.order.InsufficientStockException;
+import com.example.demo.application.service.order.OrderCancellationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -30,6 +32,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BookDeletionException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleBookDeletionException(BookDeletionException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return error;
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleInsufficientStockException(InsufficientStockException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return error;
+    }
+
+    @ExceptionHandler(OrderCancellationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleOrderCancellationException(OrderCancellationException ex) {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return error;

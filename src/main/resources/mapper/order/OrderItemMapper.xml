@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.infrastructure.mapper.order.OrderItemMapper">
+
+    <resultMap id="orderItemResultMap" type="com.example.demo.domain.model.order.OrderItem">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="bookIsbn" column="book_isbn"/>
+        <result property="quantity" column="quantity"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findByOrderId" resultMap="orderItemResultMap" parameterType="java.util.UUID">
+        SELECT * FROM order_item WHERE order_id = #{orderId}
+    </select>
+
+    <insert id="save" parameterType="com.example.demo.domain.model.order.OrderItem">
+        INSERT INTO order_item (order_id, book_isbn, quantity, created_at, updated_at)
+        VALUES (#{orderId}, #{bookIsbn}, #{quantity}, #{createdAt}, #{updatedAt})
+        ON CONFLICT (id) DO UPDATE SET
+            book_isbn = #{bookIsbn},
+            quantity = #{quantity},
+            updated_at = #{updatedAt}
+    </insert>
+
+    <delete id="deleteByOrderId" parameterType="java.util.UUID">
+        DELETE FROM order_item WHERE order_id = #{orderId}
+    </delete>
+
+</mapper>
