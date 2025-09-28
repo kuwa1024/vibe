@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.demo.infrastructure.mapper.customer.CustomerMapper">
+
+    <select id="findAll" resultType="com.example.demo.domain.model.customer.Customer">
+        SELECT * FROM customer
+    </select>
+
+    <select id="findById" resultType="com.example.demo.domain.model.customer.Customer" parameterType="java.util.UUID">
+        SELECT * FROM customer WHERE id = #{id}
+    </select>
+
+    <insert id="save" parameterType="com.example.demo.domain.model.customer.Customer">
+        INSERT INTO customer (id, name, email, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{email}, #{createdAt}, #{updatedAt})
+        ON CONFLICT (id) DO UPDATE SET
+            name = #{name},
+            email = #{email},
+            updated_at = #{updatedAt}
+    </insert>
+
+    <delete id="deleteById" parameterType="java.util.UUID">
+        DELETE FROM customer WHERE id = #{id}
+    </delete>
+
+</mapper>
