@@ -6,9 +6,8 @@ import lombok.Data;
 
 @Data
 public class CreateOrderItemRequest {
-    @NotBlank
-    private String bookIsbn;
+  @NotBlank private String bookIsbn;
 
-    @Min(1)
-    private Integer quantity;
+  @Min(1)
+  private Integer quantity;
 }

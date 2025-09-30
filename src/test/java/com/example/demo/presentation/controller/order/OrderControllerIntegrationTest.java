@@ -1,14 +1,21 @@
 package com.example.demo.presentation.controller.order;
 
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.hamcrest.Matchers.*;
 
-
+import com.example.demo.domain.model.book.Book;
+import com.example.demo.domain.model.customer.Customer;
+import com.example.demo.domain.model.order.Order;
+import com.example.demo.domain.model.order.OrderItem;
+import com.example.demo.domain.repository.book.BookRepository;
+import com.example.demo.domain.repository.customer.CustomerRepository;
+import com.example.demo.domain.repository.order.OrderItemRepository;
+import com.example.demo.domain.repository.order.OrderRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,165 +27,176 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.example.demo.domain.model.book.Book;
-import com.example.demo.domain.model.customer.Customer;
-import com.example.demo.domain.model.order.Order;
-import com.example.demo.domain.model.order.OrderItem;
-import com.example.demo.domain.repository.book.BookRepository;
-import com.example.demo.domain.repository.customer.CustomerRepository;
-import com.example.demo.domain.repository.order.OrderItemRepository;
-import com.example.demo.domain.repository.order.OrderRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class OrderControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+  @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private OrderRepository orderRepository;
+  @Autowired private OrderRepository orderRepository;
 
-    @Autowired
-    private OrderItemRepository orderItemRepository;
+  @Autowired private OrderItemRepository orderItemRepository;
 
-    @Autowired
-    private CustomerRepository customerRepository;
+  @Autowired private CustomerRepository customerRepository;
 
-    @Autowired
-    private BookRepository bookRepository;
+  @Autowired private BookRepository bookRepository;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
-    private Customer customer;
-    private Book book1;
-    private Book book2;
-    private Order order;
+  private Customer customer;
+  private Book book1;
+  private Book book2;
+  private Order order;
 
-    @BeforeEach
-    void setUp() {
-        jdbcTemplate.execute("DELETE FROM order_item");
-        jdbcTemplate.execute("DELETE FROM \"order\"");
-        jdbcTemplate.execute("DELETE FROM customer");
-        jdbcTemplate.execute("DELETE FROM book");
+  @BeforeEach
+  void setUp() {
+    jdbcTemplate.execute("DELETE FROM order_item");
+    jdbcTemplate.execute("DELETE FROM \"order\"");
+    jdbcTemplate.execute("DELETE FROM customer");
+    jdbcTemplate.execute("DELETE FROM book");
 
-        LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = LocalDateTime.now();
 
-        customer = new Customer(UUID.randomUUID(), "Test Customer", "test@example.com", now, now);
-        customerRepository.save(customer);
+    customer = new Customer(UUID.randomUUID(), "Test Customer", "test@example.com", now, now);
+    customerRepository.save(customer);
 
-        book1 = new Book("9784297100339", "達人プログラマー", 3200, 10, now, now);
-        bookRepository.save(book1);
+    book1 = new Book("9784297100339", "達人プログラマー", 3200, 10, now, now);
+    bookRepository.save(book1);
 
-        book2 = new Book("9784798157622", "Clean Architecture", 3400, 5, now, now);
-        bookRepository.save(book2);
+    book2 = new Book("9784798157622", "Clean Architecture", 3400, 5, now, now);
+    bookRepository.save(book2);
 
-        order = new Order(UUID.randomUUID(), customer.getId(), now, Order.OrderStatus.PENDING.name(), now, now, null);
-        orderRepository.insert(order);
+    order =
+        new Order(
+            UUID.randomUUID(),
+            customer.getId(),
+            now,
+            Order.OrderStatus.PENDING.name(),
+            now,
+            now,
+            null);
+    orderRepository.insert(order);
 
-        OrderItem orderItem1 = new OrderItem(null, order.getId(), book1.getIsbn(), 2, now, now);
-        orderItemRepository.save(orderItem1);
-        OrderItem orderItem2 = new OrderItem(null, order.getId(), book2.getIsbn(), 1, now, now);
-        orderItemRepository.save(orderItem2);
-    }
+    OrderItem orderItem1 = new OrderItem(null, order.getId(), book1.getIsbn(), 2, now, now);
+    orderItemRepository.save(orderItem1);
+    OrderItem orderItem2 = new OrderItem(null, order.getId(), book2.getIsbn(), 1, now, now);
+    orderItemRepository.save(orderItem2);
+  }
 
-    @Test
-    @DisplayName("GET /api/orders - すべての注文を取得できる")
-    void testGetAllOrders() throws Exception {
-        mockMvc.perform(get("/api/orders"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*]").isArray())
-                .andExpect(jsonPath("$.length()", is(1)))
-                .andExpect(jsonPath("$[0].id", is(order.getId().toString())))
-                .andExpect(jsonPath("$[0].orderItems.length()", is(2)));
-    }
+  @Test
+  @DisplayName("GET /api/orders - すべての注文を取得できる")
+  void testGetAllOrders() throws Exception {
+    mockMvc
+        .perform(get("/api/orders"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[*]").isArray())
+        .andExpect(jsonPath("$.length()", is(1)))
+        .andExpect(jsonPath("$[0].id", is(order.getId().toString())))
+        .andExpect(jsonPath("$[0].orderItems.length()", is(2)));
+  }
 
-    @Test
-    @DisplayName("GET /api/orders/{id} - IDで注文を1件取得できる")
-    void testGetOrderById() throws Exception {
-        mockMvc.perform(get("/api/orders/{id}", order.getId()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(order.getId().toString())))
-                .andExpect(jsonPath("$.customerId", is(customer.getId().toString())))
-                .andExpect(jsonPath("$.orderItems.length()", is(2)));
-    }
+  @Test
+  @DisplayName("GET /api/orders/{id} - IDで注文を1件取得できる")
+  void testGetOrderById() throws Exception {
+    mockMvc
+        .perform(get("/api/orders/{id}", order.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", is(order.getId().toString())))
+        .andExpect(jsonPath("$.customerId", is(customer.getId().toString())))
+        .andExpect(jsonPath("$.orderItems.length()", is(2)));
+  }
 
-    @Test
-    @DisplayName("GET /api/orders/{id} - 存在しないIDで注文を取得しようとすると404を返す")
-    void testGetOrderByIdNotFound() throws Exception {
-        mockMvc.perform(get("/api/orders/{id}", UUID.randomUUID()))
-                .andExpect(status().isNotFound());
-    }
+  @Test
+  @DisplayName("GET /api/orders/{id} - 存在しないIDで注文を取得しようとすると404を返す")
+  void testGetOrderByIdNotFound() throws Exception {
+    mockMvc.perform(get("/api/orders/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+  }
 
-    @Test
-    @DisplayName("POST /api/orders - 注文を新規作成できる")
-    void testCreateOrder() throws Exception {
-        UUID newCustomerId = UUID.randomUUID();
-        customerRepository.save(new Customer(newCustomerId, "New Customer", "new@example.com", LocalDateTime.now(), LocalDateTime.now()));
+  @Test
+  @DisplayName("POST /api/orders - 注文を新規作成できる")
+  void testCreateOrder() throws Exception {
+    UUID newCustomerId = UUID.randomUUID();
+    customerRepository.save(
+        new Customer(
+            newCustomerId,
+            "New Customer",
+            "new@example.com",
+            LocalDateTime.now(),
+            LocalDateTime.now()));
 
-        String newOrderJson = "{\"customerId\":\"" + newCustomerId + "\",\"orderItems\":[{\"bookIsbn\":\"" + book1.getIsbn() + "\",\"quantity\":1}]}";
+    String newOrderJson =
+        "{\"customerId\":\""
+            + newCustomerId
+            + "\",\"orderItems\":[{\"bookIsbn\":\""
+            + book1.getIsbn()
+            + "\",\"quantity\":1}]}";
 
-        mockMvc.perform(post("/api/orders")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(newOrderJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.customerId", is(newCustomerId.toString())))
-                .andExpect(jsonPath("$.status", is(Order.OrderStatus.PENDING.name())))
-                .andExpect(jsonPath("$.orderItems.length()", is(1)));
-    }
+    mockMvc
+        .perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content(newOrderJson))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.customerId", is(newCustomerId.toString())))
+        .andExpect(jsonPath("$.status", is(Order.OrderStatus.PENDING.name())))
+        .andExpect(jsonPath("$.orderItems.length()", is(1)));
+  }
 
-    @Test
-    @DisplayName("POST /api/orders - 在庫不足で注文を作成しようとすると400エラーを返す")
-    void testCreateOrderInsufficientStock() throws Exception {
-        UUID newCustomerId = UUID.randomUUID();
-        customerRepository.save(new Customer(newCustomerId, "New Customer", "new@example.com", LocalDateTime.now(), LocalDateTime.now()));
+  @Test
+  @DisplayName("POST /api/orders - 在庫不足で注文を作成しようとすると400エラーを返す")
+  void testCreateOrderInsufficientStock() throws Exception {
+    UUID newCustomerId = UUID.randomUUID();
+    customerRepository.save(
+        new Customer(
+            newCustomerId,
+            "New Customer",
+            "new@example.com",
+            LocalDateTime.now(),
+            LocalDateTime.now()));
 
-        // book1の在庫は10なので、11個注文すると在庫不足エラーになる
-        String newOrderJson = "{\"customerId\":\"" + newCustomerId + "\",\"orderItems\":[{\"bookIsbn\":\"" + book1.getIsbn() + "\",\"quantity\":11}]}";
+    // book1の在庫は10なので、11個注文すると在庫不足エラーになる
+    String newOrderJson =
+        "{\"customerId\":\""
+            + newCustomerId
+            + "\",\"orderItems\":[{\"bookIsbn\":\""
+            + book1.getIsbn()
+            + "\",\"quantity\":11}]}";
 
-        mockMvc.perform(post("/api/orders")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(newOrderJson))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", is("Insufficient stock for book ISBN: " + book1.getIsbn())));
-    }
+    mockMvc
+        .perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content(newOrderJson))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error", is("Insufficient stock for book ISBN: " + book1.getIsbn())));
+  }
 
+  @Test
+  @DisplayName("DELETE /api/orders/{id} - 注文を削除できる（在庫が元に戻ることを含む）")
+  void testDeleteOrder() throws Exception {
+    // 削除前の本の在庫数を取得
+    Integer initialBook1Stock = bookRepository.findById(book1.getIsbn()).get().getStock();
+    Integer initialBook2Stock = bookRepository.findById(book2.getIsbn()).get().getStock();
 
+    mockMvc.perform(delete("/api/orders/{id}", order.getId())).andExpect(status().isNoContent());
 
-    @Test
-    @DisplayName("DELETE /api/orders/{id} - 注文を削除できる（在庫が元に戻ることを含む）")
-    void testDeleteOrder() throws Exception {
-        // 削除前の本の在庫数を取得
-        Integer initialBook1Stock = bookRepository.findById(book1.getIsbn()).get().getStock();
-        Integer initialBook2Stock = bookRepository.findById(book2.getIsbn()).get().getStock();
+    // DBから削除されたことを確認
+    mockMvc.perform(get("/api/orders/{id}", order.getId())).andExpect(status().isNotFound());
 
-        mockMvc.perform(delete("/api/orders/{id}", order.getId()))
-                .andExpect(status().isNoContent());
+    // 在庫が元に戻ったことを確認
+    assertEquals(
+        initialBook1Stock + 2, (int) bookRepository.findById(book1.getIsbn()).get().getStock());
+    assertEquals(
+        initialBook2Stock + 1, (int) bookRepository.findById(book2.getIsbn()).get().getStock());
+  }
 
-        // DBから削除されたことを確認
-        mockMvc.perform(get("/api/orders/{id}", order.getId()))
-                .andExpect(status().isNotFound());
+  @Test
+  @DisplayName("DELETE /api/orders/{id} - 出荷済み注文を削除しようとすると400エラーを返す")
+  void testDeleteShippedOrder() throws Exception {
+    // 注文ステータスを出荷済みに変更
+    order.setStatus(Order.OrderStatus.SHIPPED.name());
+    orderRepository.update(order);
 
-        // 在庫が元に戻ったことを確認
-        assertEquals(initialBook1Stock + 2, (int) bookRepository.findById(book1.getIsbn()).get().getStock());
-        assertEquals(initialBook2Stock + 1, (int) bookRepository.findById(book2.getIsbn()).get().getStock());
-    }
-
-    @Test
-    @DisplayName("DELETE /api/orders/{id} - 出荷済み注文を削除しようとすると400エラーを返す")
-    void testDeleteShippedOrder() throws Exception {
-        // 注文ステータスを出荷済みに変更
-        order.setStatus(Order.OrderStatus.SHIPPED.name());
-        orderRepository.update(order);
-
-        mockMvc.perform(delete("/api/orders/{id}", order.getId()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", is("Order with status SHIPPED cannot be cancelled.")));
-    }
+    mockMvc
+        .perform(delete("/api/orders/{id}", order.getId()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error", is("Order with status SHIPPED cannot be cancelled.")));
+  }
 }

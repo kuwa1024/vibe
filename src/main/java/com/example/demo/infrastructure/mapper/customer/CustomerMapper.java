@@ -1,20 +1,18 @@
 package com.example.demo.infrastructure.mapper.customer;
 
+import com.example.demo.domain.model.customer.Customer;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
 import org.apache.ibatis.annotations.Mapper;
-
-import com.example.demo.domain.model.customer.Customer;
 
 @Mapper
 public interface CustomerMapper {
-    List<Customer> findAll();
+  List<Customer> findAll();
 
-    Optional<Customer> findById(UUID id);
+  Optional<Customer> findById(UUID id);
 
-    void save(Customer customer);
+  void save(Customer customer);
 
-    void deleteById(UUID id);
+  void deleteById(UUID id);
 }
