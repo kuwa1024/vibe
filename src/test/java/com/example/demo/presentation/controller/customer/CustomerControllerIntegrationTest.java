@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.demo.domain.model.customer.Customer;
 import com.example.demo.domain.repository.customer.CustomerRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +25,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class CustomerControllerIntegrationTest {
 
   @Autowired private MockMvc mockMvc;
-
-  @Autowired private ObjectMapper objectMapper;
 
   @Autowired private CustomerRepository customerRepository;
 

@@ -12,7 +12,6 @@ import com.example.demo.domain.repository.book.BookRepository;
 import com.example.demo.domain.repository.customer.CustomerRepository;
 import com.example.demo.domain.repository.order.OrderItemRepository;
 import com.example.demo.domain.repository.order.OrderRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,8 +31,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class OrderControllerIntegrationTest {
 
   @Autowired private MockMvc mockMvc;
-
-  @Autowired private ObjectMapper objectMapper;
 
   @Autowired private OrderRepository orderRepository;
 

@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.repository.book.BookRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,8 +23,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class BookControllerIntegrationTest {
 
   @Autowired private MockMvc mockMvc;
-
-  @Autowired private ObjectMapper objectMapper;
 
   @Autowired private BookRepository bookRepository;
 
