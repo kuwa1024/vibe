@@ -6,6 +6,7 @@ import com.example.demo.presentation.request.order.CreateOrderRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -37,18 +38,27 @@ public class OrderController {
   }
 
   @PostMapping
-  public ResponseEntity<OrderDto> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-    OrderDto createdOrder = orderService.createOrder(request);
-    URI location =
-        ServletUriComponentsBuilder.fromCurrentRequest()
-            .path("/{id}")
-            .buildAndExpand(createdOrder.getId())
-            .toUri();
-    return ResponseEntity.created(location).body(createdOrder);
+  public ResponseEntity<?> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+    try {
+      OrderDto createdOrder = orderService.createOrder(request);
+      URI location =
+          ServletUriComponentsBuilder.fromCurrentRequest()
+              .path("/{id}")
+              .buildAndExpand(createdOrder.getId())
+              .toUri();
+      return ResponseEntity.created(location).body(createdOrder);
+    } catch (com.example.demo.domain.exception.InsufficientStockException e) {
+      return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    }
   }
 
   @DeleteMapping("/{id}")
-  public ResponseEntity<Void> deleteOrder(@PathVariable UUID id) {
+  public ResponseEntity<?> deleteOrder(@PathVariable UUID id) {
+    OrderDto order = orderService.findOrderById(id);
+    if ("SHIPPED".equals(order.getStatus())) {
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", "この操作は注文のステータスが PENDING の場合のみ可能です。現在のステータス: SHIPPED"));
+    }
     orderService.deleteOrder(id);
     return ResponseEntity.noContent().build();
   }

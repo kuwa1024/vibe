@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.example.demo.application.dto.book.BookDto;
+import com.example.demo.domain.exception.BookDeletionException;
+import com.example.demo.domain.exception.BookNotFoundException;
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.repository.book.BookRepository;
 import com.example.demo.presentation.request.book.CreateBookRequest;
@@ -35,8 +37,13 @@ class BookServiceTest {
   @BeforeEach
   void setUp() {
     LocalDateTime now = LocalDateTime.now();
-    book1 = new Book("9784297100339", "達人プログラマー", 3200, 10, now, now);
-    book2 = new Book("9784798157622", "Clean Architecture", 3400, 5, now, now);
+    book1 = Book.create("9784297100339", "達人プログラマー", 3200, 10);
+    book1.setCreatedAt(now);
+    book1.setUpdatedAt(now);
+
+    book2 = Book.create("9784798157622", "Clean Architecture", 3400, 5);
+    book2.setCreatedAt(now);
+    book2.setUpdatedAt(now);
 
     createRequest = new CreateBookRequest();
     createRequest.setIsbn("9784873119045");
@@ -77,19 +84,20 @@ class BookServiceTest {
   }
 
   @Test
-  @DisplayName("ISBNで書籍が見つからない場合にRuntimeExceptionをスローする")
+  @DisplayName("ISBNで書籍が見つからない場合にBookNotFoundExceptionをスローする")
   void testFindBookByIdNotFound() {
-    when(bookRepository.findById("nonexistent")).thenReturn(Optional.empty());
+    String nonexistentIsbn = "nonexistent";
+    when(bookRepository.findById(nonexistentIsbn)).thenReturn(Optional.empty());
 
-    RuntimeException thrown =
+    BookNotFoundException thrown =
         assertThrows(
-            RuntimeException.class,
+            BookNotFoundException.class,
             () -> {
-              bookService.findBookById("nonexistent");
+              bookService.findBookById(nonexistentIsbn);
             });
 
-    assertTrue(thrown.getMessage().contains("Book not found"));
-    verify(bookRepository, times(1)).findById("nonexistent");
+    assertTrue(thrown.getMessage().contains("書籍が見つかりません"));
+    verify(bookRepository, times(1)).findById(nonexistentIsbn);
   }
 
   @Test
@@ -123,19 +131,20 @@ class BookServiceTest {
   }
 
   @Test
-  @DisplayName("更新対象の書籍が見つからない場合にRuntimeExceptionをスローする")
+  @DisplayName("更新対象の書籍が見つからない場合にBookNotFoundExceptionをスローする")
   void testUpdateBookNotFound() {
-    when(bookRepository.findById("nonexistent")).thenReturn(Optional.empty());
+    String nonexistentIsbn = "nonexistent";
+    when(bookRepository.findById(nonexistentIsbn)).thenReturn(Optional.empty());
 
-    RuntimeException thrown =
+    BookNotFoundException thrown =
         assertThrows(
-            RuntimeException.class,
+            BookNotFoundException.class,
             () -> {
-              bookService.updateBook("nonexistent", updateRequest);
+              bookService.updateBook(nonexistentIsbn, updateRequest);
             });
 
-    assertTrue(thrown.getMessage().contains("Book not found"));
-    verify(bookRepository, times(1)).findById("nonexistent");
+    assertTrue(thrown.getMessage().contains("書籍が見つかりません"));
+    verify(bookRepository, times(1)).findById(nonexistentIsbn);
     verify(bookRepository, never()).save(any(Book.class));
   }
 
@@ -164,25 +173,26 @@ class BookServiceTest {
               bookService.deleteBook(book1.getIsbn());
             });
 
-    assertTrue(thrown.getMessage().contains("Book with stock cannot be deleted."));
+    assertTrue(thrown.getMessage().contains("在庫のある書籍は削除できません"));
     verify(bookRepository, times(1)).findById(book1.getIsbn());
     verify(bookRepository, never()).deleteById(anyString());
   }
 
   @Test
-  @DisplayName("削除対象の書籍が見つからない場合にRuntimeExceptionをスローする")
+  @DisplayName("削除対象の書籍が見つからない場合にBookNotFoundExceptionをスローする")
   void testDeleteBookNotFound() {
-    when(bookRepository.findById("nonexistent")).thenReturn(Optional.empty());
+    String nonexistentIsbn = "nonexistent";
+    when(bookRepository.findById(nonexistentIsbn)).thenReturn(Optional.empty());
 
-    RuntimeException thrown =
+    BookNotFoundException thrown =
         assertThrows(
-            RuntimeException.class,
+            BookNotFoundException.class,
             () -> {
-              bookService.deleteBook("nonexistent");
+              bookService.deleteBook(nonexistentIsbn);
             });
 
-    assertTrue(thrown.getMessage().contains("Book not found"));
-    verify(bookRepository, times(1)).findById("nonexistent");
+    assertTrue(thrown.getMessage().contains("書籍が見つかりません"));
+    verify(bookRepository, times(1)).findById(nonexistentIsbn);
     verify(bookRepository, never()).deleteById(anyString());
   }
 }

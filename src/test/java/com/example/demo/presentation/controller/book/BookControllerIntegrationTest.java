@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.repository.book.BookRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,9 +43,10 @@ class BookControllerIntegrationTest {
   @DisplayName("GET /api/books - すべての書籍を取得できる")
   void testGetAllBooks() throws Exception {
     // 初期データ投入
-    LocalDateTime now = LocalDateTime.now();
-    bookRepository.save(new Book("9784297100339", "達人プログラマー", 3200, 10, now, now));
-    bookRepository.save(new Book("9784798157622", "Clean Architecture", 3400, 5, now, now));
+    Book book1 = Book.create("9784297100339", "達人プログラマー", 3200, 10);
+    Book book2 = Book.create("9784798157622", "Clean Architecture", 3400, 5);
+    bookRepository.save(book1);
+    bookRepository.save(book2);
 
     mockMvc
         .perform(get("/api/books"))
@@ -59,8 +59,7 @@ class BookControllerIntegrationTest {
   @Test
   @DisplayName("GET /api/books/{isbn} - ISBNで書籍を1件取得できる")
   void testGetBookByIsbn() throws Exception {
-    LocalDateTime now = LocalDateTime.now();
-    Book book = new Book("9784873119045", "Effective Java 第3版", 4950, 15, now, now);
+    Book book = Book.create("9784873119045", "Effective Java 第3版", 4950, 15);
     bookRepository.save(book);
 
     mockMvc
@@ -76,7 +75,7 @@ class BookControllerIntegrationTest {
     mockMvc
         .perform(get("/api/books/{isbn}", "nonexistent"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error", is("Book not found with ISBN: nonexistent")));
+        .andExpect(jsonPath("$.error", is("書籍が見つかりません。ISBN: nonexistent")));
   }
 
   @Test
@@ -113,8 +112,7 @@ class BookControllerIntegrationTest {
   @Test
   @DisplayName("PUT /api/books/{isbn} - 書籍を更新できる")
   void testUpdateBook() throws Exception {
-    LocalDateTime now = LocalDateTime.now();
-    Book book = new Book("9781111111111", "Old Title", 100, 5, now, now);
+    Book book = Book.create("9781111111111", "Old Title", 100, 5);
     bookRepository.save(book);
 
     String updatedBookJson = "{\"title\":\"Updated Title\",\"price\":200,\"stock\":10}";
@@ -142,14 +140,13 @@ class BookControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(updatedBookJson))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error", is("Book not found with ISBN: nonexistent")));
+        .andExpect(jsonPath("$.error", is("書籍が見つかりません。ISBN: nonexistent")));
   }
 
   @Test
   @DisplayName("DELETE /api/books/{isbn} - 書籍を削除できる")
   void testDeleteBook() throws Exception {
-    LocalDateTime now = LocalDateTime.now();
-    Book book = new Book("9782222222222", "Delete Me", 50, 0, now, now);
+    Book book = Book.create("9782222222222", "Delete Me", 50, 0);
     bookRepository.save(book);
 
     mockMvc.perform(delete("/api/books/{isbn}", book.getIsbn())).andExpect(status().isNoContent());
@@ -161,14 +158,13 @@ class BookControllerIntegrationTest {
   @Test
   @DisplayName("DELETE /api/books/{isbn} - 在庫のある書籍を削除しようとすると400エラー")
   void testDeleteBookWithStock() throws Exception {
-    LocalDateTime now = LocalDateTime.now();
-    Book book = new Book("9782222222222", "Delete Me", 50, 2, now, now);
+    Book book = Book.create("9782222222222", "Delete Me", 50, 2);
     bookRepository.save(book);
 
     mockMvc
         .perform(delete("/api/books/{isbn}", book.getIsbn()))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error", is("Book with stock cannot be deleted.")));
+        .andExpect(jsonPath("$.error", is("在庫のある書籍は削除できません")));
   }
 
   @Test
@@ -177,6 +173,6 @@ class BookControllerIntegrationTest {
     mockMvc
         .perform(delete("/api/books/{isbn}", "nonexistent"))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error", is("Book not found with ISBN: nonexistent")));
+        .andExpect(jsonPath("$.error", is("書籍が見つかりません。ISBN: nonexistent")));
   }
 }

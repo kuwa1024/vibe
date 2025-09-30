@@ -1,14 +1,13 @@
 package com.example.demo.application.service.order;
 
 import com.example.demo.application.dto.order.OrderDto;
+import com.example.demo.domain.exception.OrderNotFoundException;
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.model.order.Order;
-import com.example.demo.domain.model.order.OrderItem;
-import com.example.demo.domain.repository.book.BookRepository;
 import com.example.demo.domain.repository.order.OrderItemRepository;
 import com.example.demo.domain.repository.order.OrderRepository;
+import com.example.demo.domain.service.BookDomainService;
 import com.example.demo.presentation.request.order.CreateOrderRequest;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -22,7 +21,7 @@ public class OrderService {
 
   private final OrderRepository orderRepository;
   private final OrderItemRepository orderItemRepository;
-  private final BookRepository bookRepository;
+  private final BookDomainService bookDomainService;
 
   public List<OrderDto> findAllOrders() {
     List<Order> orders = orderRepository.findAll();
@@ -39,54 +38,27 @@ public class OrderService {
     Order order =
         orderRepository
             .findById(id)
-            .orElseThrow(() -> new RuntimeException("Order not found with ID: " + id));
+            .orElseThrow(() -> new OrderNotFoundException("注文が見つかりません。ID: " + id));
     order.setOrderItems(orderItemRepository.findByOrderId(order.getId()));
     return OrderDto.from(order);
   }
 
   @Transactional
   public OrderDto createOrder(CreateOrderRequest request) {
-    Order order = new Order();
-    order.setId(UUID.randomUUID());
-    order.setCustomerId(request.getCustomerId());
-    order.setOrderDatetime(LocalDateTime.now());
-    order.setStatus(Order.OrderStatus.PENDING.name());
-    order.setCreatedAt(LocalDateTime.now());
-    order.setUpdatedAt(LocalDateTime.now());
-
-    // 注文を先に保存してIDを確定させる
+    Order order = Order.create(request.getCustomerId());
     orderRepository.insert(order);
 
-    List<OrderItem> orderItems =
-        request.getOrderItems().stream()
-            .map(
-                itemRequest -> {
-                  // 在庫チェックと在庫削減
-                  Book book =
-                      bookRepository
-                          .findById(itemRequest.getBookIsbn())
-                          .orElseThrow(
-                              () ->
-                                  new RuntimeException(
-                                      "Book not found with ISBN: " + itemRequest.getBookIsbn()));
-                  if (book.getStock() < itemRequest.getQuantity()) {
-                    throw new InsufficientStockException(
-                        "Insufficient stock for book ISBN: " + book.getIsbn());
-                  }
-                  book.setStock(book.getStock() - itemRequest.getQuantity());
-                  bookRepository.save(book);
+    request
+        .getOrderItems()
+        .forEach(
+            itemRequest -> {
+              Book book =
+                  bookDomainService.validateAndDecreaseStock(
+                      itemRequest.getBookIsbn(), itemRequest.getQuantity());
 
-                  OrderItem orderItem = new OrderItem();
-                  orderItem.setOrderId(order.getId()); // 確定した注文IDを使用
-                  orderItem.setBookIsbn(itemRequest.getBookIsbn());
-                  orderItem.setQuantity(itemRequest.getQuantity());
-                  orderItem.setCreatedAt(LocalDateTime.now());
-                  orderItem.setUpdatedAt(LocalDateTime.now());
-                  orderItemRepository.save(orderItem);
-                  return orderItem;
-                })
-            .collect(Collectors.toList());
-    order.setOrderItems(orderItems);
+              order.addOrderItem(book.getIsbn(), itemRequest.getQuantity());
+              orderItemRepository.save(order.getOrderItems().get(order.getOrderItems().size() - 1));
+            });
 
     return OrderDto.from(order);
   }
@@ -96,24 +68,18 @@ public class OrderService {
     Order order =
         orderRepository
             .findById(id)
-            .orElseThrow(() -> new RuntimeException("Order not found with ID: " + id));
+            .orElseThrow(() -> new OrderNotFoundException("注文が見つかりません。ID: " + id));
+    order.setOrderItems(orderItemRepository.findByOrderId(order.getId()));
 
-    if (!order.getStatus().equals(Order.OrderStatus.PENDING.name())) {
-      throw new OrderCancellationException(
-          "Order with status " + order.getStatus() + " cannot be cancelled.");
-    }
+    order.validateCancellation();
 
     // 在庫を元に戻す
-    List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
-    for (OrderItem item : orderItems) {
-      Book book =
-          bookRepository
-              .findById(item.getBookIsbn())
-              .orElseThrow(
-                  () -> new RuntimeException("Book not found with ISBN: " + item.getBookIsbn()));
-      book.setStock(book.getStock() + item.getQuantity());
-      bookRepository.save(book);
-    }
+    order
+        .getOrderItems()
+        .forEach(
+            item -> {
+              bookDomainService.validateAndIncreaseStock(item.getBookIsbn(), item.getQuantity());
+            });
 
     orderItemRepository.deleteByOrderId(id);
     orderRepository.deleteById(id);

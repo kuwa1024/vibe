@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.example.demo.application.dto.order.OrderDto;
+import com.example.demo.domain.exception.InsufficientStockException;
+import com.example.demo.domain.exception.OrderNotFoundException;
+import com.example.demo.domain.exception.OrderStateException;
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.model.order.Order;
 import com.example.demo.domain.model.order.Order.OrderStatus;
@@ -11,6 +14,7 @@ import com.example.demo.domain.model.order.OrderItem;
 import com.example.demo.domain.repository.book.BookRepository;
 import com.example.demo.domain.repository.order.OrderItemRepository;
 import com.example.demo.domain.repository.order.OrderRepository;
+import com.example.demo.domain.service.BookDomainService;
 import com.example.demo.presentation.request.order.CreateOrderItemRequest;
 import com.example.demo.presentation.request.order.CreateOrderRequest;
 import java.time.LocalDateTime;
@@ -36,6 +40,8 @@ class OrderServiceTest {
 
   @Mock private BookRepository bookRepository;
 
+  @Mock private BookDomainService bookDomainService;
+
   @InjectMocks private OrderService orderService;
 
   private Order order1;
@@ -53,27 +59,35 @@ class OrderServiceTest {
     UUID orderId1 = UUID.randomUUID();
     UUID orderId2 = UUID.randomUUID();
 
-    orderItem1 = new OrderItem(1L, orderId1, "9784297100339", 2, now, now);
-    orderItem2 = new OrderItem(2L, orderId1, "9784798157622", 1, now, now);
+    orderItem1 = new OrderItem();
+    orderItem1.setId(1L);
+    orderItem1.setOrderId(orderId1);
+    orderItem1.setBookIsbn("9784297100339");
+    orderItem1.setQuantity(2);
+    orderItem1.setCreatedAt(now);
+    orderItem1.setUpdatedAt(now);
 
-    order1 =
-        new Order(
-            orderId1,
-            customerId,
-            now,
-            OrderStatus.PENDING.name(),
-            now,
-            now,
-            Arrays.asList(orderItem1, orderItem2));
-    order2 =
-        new Order(
-            orderId2,
-            customerId,
-            now,
-            OrderStatus.SHIPPED.name(),
-            now,
-            now,
-            Collections.emptyList());
+    orderItem2 = new OrderItem();
+    orderItem2.setId(2L);
+    orderItem2.setOrderId(orderId1);
+    orderItem2.setBookIsbn("9784798157622");
+    orderItem2.setQuantity(1);
+    orderItem2.setCreatedAt(now);
+    orderItem2.setUpdatedAt(now);
+
+    order1 = Order.create(customerId);
+    order1.setId(orderId1);
+    order1.setOrderItems(Arrays.asList(orderItem1, orderItem2));
+    order1.setOrderDatetime(now);
+    order1.setCreatedAt(now);
+    order1.setUpdatedAt(now);
+
+    order2 = Order.create(customerId);
+    order2.setId(orderId2);
+    order2.setStatus(OrderStatus.SHIPPED.name());
+    order2.setOrderDatetime(now);
+    order2.setCreatedAt(now);
+    order2.setUpdatedAt(now);
 
     CreateOrderItemRequest createOrderItemRequest1 = new CreateOrderItemRequest();
     createOrderItemRequest1.setBookIsbn("9784873119045");
@@ -83,8 +97,13 @@ class OrderServiceTest {
     createRequest.setCustomerId(customerId);
     createRequest.setOrderItems(Arrays.asList(createOrderItemRequest1));
 
-    bookInStock = new Book("9784873119045", "Effective Java 第3版", 4950, 10, now, now);
-    bookOutOfStock = new Book("9784873119045", "Effective Java 第3版", 4950, 2, now, now);
+    bookInStock = Book.create("9784873119045", "Effective Java 第3版", 4950, 10);
+    bookInStock.setCreatedAt(now);
+    bookInStock.setUpdatedAt(now);
+
+    bookOutOfStock = Book.create("9784873119045", "Effective Java 第3版", 4950, 2);
+    bookOutOfStock.setCreatedAt(now);
+    bookOutOfStock.setUpdatedAt(now);
   }
 
   @Test
@@ -120,19 +139,19 @@ class OrderServiceTest {
   }
 
   @Test
-  @DisplayName("IDで注文が見つからない場合にRuntimeExceptionをスローする")
+  @DisplayName("IDで注文が見つからない場合にOrderNotFoundExceptionをスローする")
   void testFindOrderByIdNotFound() {
     UUID nonExistentId = UUID.randomUUID();
     when(orderRepository.findById(nonExistentId)).thenReturn(Optional.empty());
 
-    RuntimeException thrown =
+    OrderNotFoundException thrown =
         assertThrows(
-            RuntimeException.class,
+            OrderNotFoundException.class,
             () -> {
               orderService.findOrderById(nonExistentId);
             });
 
-    assertTrue(thrown.getMessage().contains("Order not found"));
+    assertTrue(thrown.getMessage().contains("注文が見つかりません"));
     verify(orderRepository, times(1)).findById(nonExistentId);
     verify(orderItemRepository, never()).findByOrderId(any(UUID.class));
   }
@@ -149,8 +168,7 @@ class OrderServiceTest {
         .when(orderRepository)
         .insert(any(Order.class));
     doNothing().when(orderItemRepository).save(any(OrderItem.class));
-    when(bookRepository.findById(anyString())).thenReturn(Optional.of(bookInStock));
-    doNothing().when(bookRepository).save(any(Book.class));
+    when(bookDomainService.validateAndDecreaseStock(anyString(), anyInt())).thenReturn(bookInStock);
 
     OrderDto result = orderService.createOrder(createRequest);
 
@@ -161,14 +179,14 @@ class OrderServiceTest {
     assertEquals(1, result.getOrderItems().size());
     verify(orderRepository, times(1)).insert(any(Order.class));
     verify(orderItemRepository, times(1)).save(any(OrderItem.class));
-    verify(bookRepository, times(1)).findById(anyString());
-    verify(bookRepository, times(1)).save(any(Book.class));
+    verify(bookDomainService, times(1)).validateAndDecreaseStock(anyString(), anyInt());
   }
 
   @Test
   @DisplayName("在庫が不足している場合にInsufficientStockExceptionをスローする")
   void testCreateOrderInsufficientStock() {
-    when(bookRepository.findById(anyString())).thenReturn(Optional.of(bookOutOfStock));
+    when(bookDomainService.validateAndDecreaseStock(anyString(), anyInt()))
+        .thenThrow(new InsufficientStockException("在庫が不足しています"));
 
     InsufficientStockException thrown =
         assertThrows(
@@ -177,85 +195,70 @@ class OrderServiceTest {
               orderService.createOrder(createRequest);
             });
 
-    assertTrue(thrown.getMessage().contains("Insufficient stock"));
+    assertTrue(thrown.getMessage().contains("在庫が不足しています"));
     verify(orderRepository, times(1)).insert(any(Order.class));
     verify(orderItemRepository, never()).save(any(OrderItem.class));
-    verify(bookRepository, times(1)).findById(anyString());
-    verify(bookRepository, never()).save(any(Book.class));
+    verify(bookDomainService, times(1)).validateAndDecreaseStock(anyString(), anyInt());
   }
 
   @Test
   @DisplayName("注文を削除できる（在庫が元に戻ることを含む）")
   void testDeleteOrder() {
-    // 注文アイテムの書籍の在庫をモック
-    Book bookInOrder =
-        new Book(
-            orderItem1.getBookIsbn(),
-            "Test Book",
-            100,
-            5,
-            LocalDateTime.now(),
-            LocalDateTime.now());
     when(orderRepository.findById(order1.getId())).thenReturn(Optional.of(order1));
     when(orderItemRepository.findByOrderId(order1.getId())).thenReturn(order1.getOrderItems());
-    when(bookRepository.findById(orderItem1.getBookIsbn())).thenReturn(Optional.of(bookInOrder));
-    when(bookRepository.findById(orderItem2.getBookIsbn()))
-        .thenReturn(Optional.of(bookInOrder)); // 同じ本をモック
     doNothing().when(orderItemRepository).deleteByOrderId(order1.getId());
     doNothing().when(orderRepository).deleteById(order1.getId());
+
+    Book updatedBook = Book.create(orderItem1.getBookIsbn(), "Test Book", 100, 5);
+    when(bookDomainService.validateAndIncreaseStock(anyString(), anyInt())).thenReturn(updatedBook);
 
     orderService.deleteOrder(order1.getId());
 
     verify(orderRepository, times(1)).findById(order1.getId());
     verify(orderItemRepository, times(1)).findByOrderId(order1.getId());
-    verify(bookRepository, times(2)).findById(anyString()); // 2つの注文アイテムに対して呼ばれる
-    verify(bookRepository, times(2)).save(any(Book.class)); // 2つの本の在庫が更新される
+    verify(bookDomainService, times(2)).validateAndIncreaseStock(anyString(), anyInt());
     verify(orderItemRepository, times(1)).deleteByOrderId(order1.getId());
     verify(orderRepository, times(1)).deleteById(order1.getId());
-
-    // 在庫が元に戻ったことを確認 (モックのbookInStockのstockが更新されることを想定)
-    assertEquals(5 + orderItem1.getQuantity() + orderItem2.getQuantity(), bookInOrder.getStock());
   }
 
   @Test
-  @DisplayName("出荷済み注文を削除しようとするとOrderCancellationExceptionをスローする")
+  @DisplayName("出荷済み注文を削除しようとするとOrderStateExceptionをスローする")
   void testDeleteShippedOrder() {
     when(orderRepository.findById(order2.getId())).thenReturn(Optional.of(order2));
+    when(orderItemRepository.findByOrderId(order2.getId())).thenReturn(Collections.emptyList());
 
-    OrderCancellationException thrown =
+    OrderStateException thrown =
         assertThrows(
-            OrderCancellationException.class,
+            OrderStateException.class,
             () -> {
               orderService.deleteOrder(order2.getId());
             });
 
-    assertTrue(thrown.getMessage().contains("cannot be cancelled"));
+    assertTrue(thrown.getMessage().contains("この操作は注文のステータスが"));
     verify(orderRepository, times(1)).findById(order2.getId());
-    verify(orderItemRepository, never()).findByOrderId(any(UUID.class));
-    verify(bookRepository, never()).findById(anyString());
-    verify(bookRepository, never()).save(any(Book.class));
+    verify(orderItemRepository, times(1)).findByOrderId(order2.getId());
+    verify(bookDomainService, never()).validateAndIncreaseStock(anyString(), anyInt());
     verify(orderItemRepository, never()).deleteByOrderId(any(UUID.class));
     verify(orderRepository, never()).deleteById(any(UUID.class));
   }
 
   @Test
-  @DisplayName("削除対象の注文が見つからない場合にRuntimeExceptionをスローする")
+  @DisplayName("削除対象の注文が見つからない場合にOrderNotFoundExceptionをスローする")
   void testDeleteOrderNotFound() {
     UUID nonExistentId = UUID.randomUUID();
     when(orderRepository.findById(nonExistentId)).thenReturn(Optional.empty());
 
-    RuntimeException thrown =
+    OrderNotFoundException thrown =
         assertThrows(
-            RuntimeException.class,
+            OrderNotFoundException.class,
             () -> {
               orderService.deleteOrder(nonExistentId);
             });
 
-    assertTrue(thrown.getMessage().contains("Order not found"));
+    assertTrue(thrown.getMessage().contains("注文が見つかりません"));
     verify(orderRepository, times(1)).findById(nonExistentId);
     verify(orderItemRepository, never()).findByOrderId(any(UUID.class));
-    verify(bookRepository, never()).findById(anyString());
-    verify(bookRepository, never()).save(any(Book.class));
+    verify(bookDomainService, never()).validateAndIncreaseStock(anyString(), anyInt());
     verify(orderItemRepository, never()).deleteByOrderId(any(UUID.class));
     verify(orderRepository, never()).deleteById(any(UUID.class));
   }

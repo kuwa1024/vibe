@@ -7,6 +7,7 @@ import com.example.demo.presentation.request.book.UpdateBookRequest;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -54,7 +55,11 @@ public class BookController {
   }
 
   @DeleteMapping("/{isbn}")
-  public ResponseEntity<Void> deleteBook(@PathVariable String isbn) {
+  public ResponseEntity<?> deleteBook(@PathVariable String isbn) {
+    BookDto book = bookService.findBookById(isbn);
+    if (book.getStock() > 0) {
+      return ResponseEntity.badRequest().body(Map.of("error", "在庫のある書籍は削除できません"));
+    }
     bookService.deleteBook(isbn);
     return ResponseEntity.noContent().build();
   }

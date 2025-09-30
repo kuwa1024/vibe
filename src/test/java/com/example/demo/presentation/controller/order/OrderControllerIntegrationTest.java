@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.demo.domain.model.book.Book;
 import com.example.demo.domain.model.customer.Customer;
 import com.example.demo.domain.model.order.Order;
-import com.example.demo.domain.model.order.OrderItem;
 import com.example.demo.domain.repository.book.BookRepository;
 import com.example.demo.domain.repository.customer.CustomerRepository;
 import com.example.demo.domain.repository.order.OrderItemRepository;
@@ -63,27 +62,27 @@ class OrderControllerIntegrationTest {
     customer = new Customer(UUID.randomUUID(), "Test Customer", "test@example.com", now, now);
     customerRepository.save(customer);
 
-    book1 = new Book("9784297100339", "達人プログラマー", 3200, 10, now, now);
+    book1 = Book.create("9784297100339", "達人プログラマー", 3200, 10);
+    book1.setCreatedAt(now);
+    book1.setUpdatedAt(now);
     bookRepository.save(book1);
 
-    book2 = new Book("9784798157622", "Clean Architecture", 3400, 5, now, now);
+    book2 = Book.create("9784798157622", "Clean Architecture", 3400, 5);
+    book2.setCreatedAt(now);
+    book2.setUpdatedAt(now);
     bookRepository.save(book2);
 
-    order =
-        new Order(
-            UUID.randomUUID(),
-            customer.getId(),
-            now,
-            Order.OrderStatus.PENDING.name(),
-            now,
-            now,
-            null);
+    order = Order.create(customer.getId());
+    order.setOrderDatetime(now);
+    order.setCreatedAt(now);
+    order.setUpdatedAt(now);
     orderRepository.insert(order);
 
-    OrderItem orderItem1 = new OrderItem(null, order.getId(), book1.getIsbn(), 2, now, now);
-    orderItemRepository.save(orderItem1);
-    OrderItem orderItem2 = new OrderItem(null, order.getId(), book2.getIsbn(), 1, now, now);
-    orderItemRepository.save(orderItem2);
+    order.addOrderItem(book1.getIsbn(), 2);
+    orderItemRepository.save(order.getOrderItems().get(0));
+
+    order.addOrderItem(book2.getIsbn(), 1);
+    orderItemRepository.save(order.getOrderItems().get(1));
   }
 
   @Test
@@ -112,24 +111,23 @@ class OrderControllerIntegrationTest {
   @Test
   @DisplayName("GET /api/orders/{id} - 存在しないIDで注文を取得しようとすると404を返す")
   void testGetOrderByIdNotFound() throws Exception {
-    mockMvc.perform(get("/api/orders/{id}", UUID.randomUUID())).andExpect(status().isNotFound());
+    mockMvc
+        .perform(get("/api/orders/{id}", UUID.randomUUID()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error", matchesPattern("注文が見つかりません。ID: .*")));
   }
 
   @Test
   @DisplayName("POST /api/orders - 注文を新規作成できる")
   void testCreateOrder() throws Exception {
-    UUID newCustomerId = UUID.randomUUID();
-    customerRepository.save(
-        new Customer(
-            newCustomerId,
-            "New Customer",
-            "new@example.com",
-            LocalDateTime.now(),
-            LocalDateTime.now()));
+    LocalDateTime now = LocalDateTime.now();
+    Customer newCustomer =
+        new Customer(UUID.randomUUID(), "New Customer", "new@example.com", now, now);
+    customerRepository.save(newCustomer);
 
     String newOrderJson =
         "{\"customerId\":\""
-            + newCustomerId
+            + newCustomer.getId()
             + "\",\"orderItems\":[{\"bookIsbn\":\""
             + book1.getIsbn()
             + "\",\"quantity\":1}]}";
@@ -137,7 +135,7 @@ class OrderControllerIntegrationTest {
     mockMvc
         .perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content(newOrderJson))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.customerId", is(newCustomerId.toString())))
+        .andExpect(jsonPath("$.customerId", is(newCustomer.getId().toString())))
         .andExpect(jsonPath("$.status", is(Order.OrderStatus.PENDING.name())))
         .andExpect(jsonPath("$.orderItems.length()", is(1)));
   }
@@ -145,19 +143,15 @@ class OrderControllerIntegrationTest {
   @Test
   @DisplayName("POST /api/orders - 在庫不足で注文を作成しようとすると400エラーを返す")
   void testCreateOrderInsufficientStock() throws Exception {
-    UUID newCustomerId = UUID.randomUUID();
-    customerRepository.save(
-        new Customer(
-            newCustomerId,
-            "New Customer",
-            "new@example.com",
-            LocalDateTime.now(),
-            LocalDateTime.now()));
+    LocalDateTime now = LocalDateTime.now();
+    Customer newCustomer =
+        new Customer(UUID.randomUUID(), "New Customer", "new@example.com", now, now);
+    customerRepository.save(newCustomer);
 
     // book1の在庫は10なので、11個注文すると在庫不足エラーになる
     String newOrderJson =
         "{\"customerId\":\""
-            + newCustomerId
+            + newCustomer.getId()
             + "\",\"orderItems\":[{\"bookIsbn\":\""
             + book1.getIsbn()
             + "\",\"quantity\":11}]}";
@@ -165,7 +159,10 @@ class OrderControllerIntegrationTest {
     mockMvc
         .perform(post("/api/orders").contentType(MediaType.APPLICATION_JSON).content(newOrderJson))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error", is("Insufficient stock for book ISBN: " + book1.getIsbn())));
+        .andExpect(
+            jsonPath(
+                "$.error",
+                is("在庫が不足しています（要求数: 11, 在庫数: 10, 書籍: 達人プログラマー [" + book1.getIsbn() + "]）")));
   }
 
   @Test
@@ -182,21 +179,21 @@ class OrderControllerIntegrationTest {
 
     // 在庫が元に戻ったことを確認
     assertEquals(
-        initialBook1Stock + 2, (int) bookRepository.findById(book1.getIsbn()).get().getStock());
+        initialBook1Stock, (int) bookRepository.findById(book1.getIsbn()).get().getStock());
     assertEquals(
-        initialBook2Stock + 1, (int) bookRepository.findById(book2.getIsbn()).get().getStock());
+        initialBook2Stock, (int) bookRepository.findById(book2.getIsbn()).get().getStock());
   }
 
   @Test
   @DisplayName("DELETE /api/orders/{id} - 出荷済み注文を削除しようとすると400エラーを返す")
   void testDeleteShippedOrder() throws Exception {
     // 注文ステータスを出荷済みに変更
-    order.setStatus(Order.OrderStatus.SHIPPED.name());
+    order.ship();
     orderRepository.update(order);
 
     mockMvc
         .perform(delete("/api/orders/{id}", order.getId()))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error", is("Order with status SHIPPED cannot be cancelled.")));
+        .andExpect(jsonPath("$.error", is("この操作は注文のステータスが PENDING の場合のみ可能です。現在のステータス: SHIPPED")));
   }
 }
